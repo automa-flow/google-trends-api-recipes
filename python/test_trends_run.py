@@ -58,12 +58,22 @@ def test_reads_are_retried_after_a_temporary_error():
     assert len(fake.calls) == 3
 
 
+def dataset_meta(count):
+    return (200, {"data": {"itemCount": count}})
+
+
 def test_all_dataset_pages_are_read():
     first = [{"n": i} for i in range(tr.PAGE_SIZE)]
-    api, fake = make_api([(200, first), (200, [{"n": "last"}]), (200, [])])
+    api, fake = make_api([dataset_meta(tr.PAGE_SIZE + 1), (200, first), (200, [{"n": "last"}]), (200, [])])
     rows = api.read_items("dataset1")
     assert len(rows) == tr.PAGE_SIZE + 1
-    assert "offset=1000" in fake.calls[1][1]
+    assert "offset=1000" in fake.calls[2][1]
+
+
+def test_fewer_rows_than_the_dataset_count_is_an_error():
+    api, _ = make_api([dataset_meta(3), (200, [{"n": 1}]), (200, [])])
+    with pytest.raises(ValueError, match="Read 1 of 3 rows"):
+        api.read_items("dataset1")
 
 
 def run_record(**overrides):
@@ -79,7 +89,7 @@ def run_record(**overrides):
 
 def test_collect_keeps_failed_rows_and_requires_a_summary():
     rows = [{"status": "FAILED", "record_type": "group_status"}, {"status": "SUCCESS"}]
-    api, _ = make_api([(200, {"isFinal": True}), (200, rows), (200, [])])
+    api, _ = make_api([(200, {"isFinal": True}), dataset_meta(2), (200, rows), (200, [])])
     assert tr.collect(api, run_record())["rows"] == rows
 
     api, _ = make_api([(404, {"error": "not found"})])
@@ -93,6 +103,28 @@ def test_collect_refuses_unfinished_or_foreign_runs():
         tr.collect(api, run_record(actId="other"))
     with pytest.raises(ValueError, match="TIMED-OUT"):
         tr.collect(api, run_record(status="TIMED-OUT"))
+    with pytest.raises(ValueError, match="still RUNNING. Read it later with --resume run1"):
+        tr.collect(api, run_record(status="RUNNING"))
+
+
+def test_a_lost_start_response_tells_the_user_not_to_start_again(tmp_path, capsys, monkeypatch):
+    def lost(self, *args, **kwargs):
+        raise TimeoutError("response lost")
+
+    monkeypatch.setattr(tr.Apify, "start_run", lost)
+    monkeypatch.setenv("APIFY_TOKEN", "test-token")
+    code = tr.main([str(ROOT / "examples" / "quick-start.json"), "--execute", "--out-dir", str(tmp_path)])
+    assert code == 2
+    assert "may still have been created" in capsys.readouterr().err
+
+
+def test_token_is_not_forwarded_to_another_host():
+    handler = tr.SameHostAuthRedirect()
+    request = tr.urllib.request.Request("https://api.apify.com/v2/x", headers={"Authorization": "Bearer t"})
+    elsewhere = handler.redirect_request(request, None, 302, "Found", {}, "https://storage.example.com/x")
+    same = handler.redirect_request(request, None, 302, "Found", {}, "https://api.apify.com/v2/y")
+    assert not elsewhere.has_header("Authorization")
+    assert same.get_header("Authorization") == "Bearer t"
 
 
 def test_sample_output_is_split_without_hiding_problems():
@@ -141,5 +173,5 @@ def test_examples_preview_without_a_token(name, capsys, monkeypatch):
 
 def test_env_file_is_parsed_without_printing_it(tmp_path):
     env = tmp_path / ".env"
-    env.write_text('# comment\nAPIFY_TOKEN="secret"\nOTHER=1\n', encoding="utf-8")
-    assert tr.read_env_file(env)["APIFY_TOKEN"] == "secret"
+    env.write_text('# comment\nexport APIFY_TOKEN="secret"\nOTHER=1\n', encoding="utf-8")
+    assert tr.read_env_file(env) == {"APIFY_TOKEN": "secret", "OTHER": "1"}

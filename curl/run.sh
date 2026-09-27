@@ -47,8 +47,9 @@ if [[ -z "${run_id:-}" ]]; then
   # One attempt only: a lost response can still mean the run exists. Check Console, then --resume.
   started=$(curl --fail-with-body -sS --max-time 90 "${auth[@]}" \
     -H 'Content-Type: application/json' --data-binary "@$input" \
-    "$api/acts/$actor/runs?build=latest&memory=$memory&timeout=$timeout&maxTotalChargeUsd=$max_charge")
-  run_id=$(jq -er .data.id <<< "$started")
+    "$api/acts/$actor/runs?build=latest&memory=$memory&timeout=$timeout&maxTotalChargeUsd=$max_charge") \
+    && run_id=$(jq -er .data.id <<< "$started") \
+    || { echo 'Could not confirm the run start. A paid run may still have been created: check https://console.apify.com/actors/runs before trying again, then use --resume RUN_ID.' >&2; exit 2; }
   echo "Started run $run_id. If this script stops, continue with: --resume $run_id" >&2
 fi
 [[ "$run_id" =~ ^[A-Za-z0-9]+$ ]] || { echo '--resume expects an Apify run ID' >&2; exit 2; }
@@ -66,16 +67,26 @@ for ((attempt = 0; attempt < 10; attempt++)); do
 done
 
 status=$(jq -r .data.status "$out/run.json")
-if [[ "$(jq -r .data.actId "$out/run.json")" != "$actor_id" || "$status" != 'SUCCEEDED' ]]; then
-  echo "Run is $status. Inspect it before starting another: https://console.apify.com/view/runs/$run_id" >&2
+if [[ "$(jq -r .data.actId "$out/run.json")" != "$actor_id" ]]; then
+  echo 'This run belongs to a different Actor' >&2
   exit 1
 fi
+case "$status" in
+  SUCCEEDED) ;;
+  READY|RUNNING|TIMING-OUT|ABORTING)
+    echo "Run $run_id is still $status. Read it later with --resume $run_id" >&2
+    exit 1 ;;
+  *)
+    echo "Run is $status. Inspect it before starting another: https://console.apify.com/view/runs/$run_id" >&2
+    exit 1 ;;
+esac
 
 store=$(jq -r .data.defaultKeyValueStoreId "$out/run.json")
 dataset=$(jq -r .data.defaultDatasetId "$out/run.json")
 get "$api/key-value-stores/$store/records/RUN_SUMMARY" > "$out/summary.json" \
   || { echo 'RUN_SUMMARY is missing, so completeness is unknown' >&2; exit 1; }
 
+expected=$(get "$api/datasets/$dataset" | jq -r '.data.itemCount // empty')
 offset=0
 : > "$out/items.jsonl"
 while true; do
@@ -86,6 +97,10 @@ while true; do
   offset=$((offset + count))
 done
 rm -f "$out/page.json"
+if [[ -n "$expected" && "$offset" -lt "$expected" ]]; then
+  echo "Read $offset of $expected rows, so the result is incomplete. Try --resume later" >&2
+  exit 1
+fi
 
 report=$(summarize "$out/items.jsonl" "$run_id")
 echo "$report"

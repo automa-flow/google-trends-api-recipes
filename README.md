@@ -24,8 +24,9 @@ to an input field.
 | Trending Now | `trending_now` | trending topic per country, with approximate traffic and news links |
 
 Every run also writes a `group_status` row for each keyword group and a
-`RUN_SUMMARY` record. Values are relative (0-100 within one comparison group),
-not search counts.
+`RUN_SUMMARY` record. Interest values are relative (0-100 within one
+comparison group), not search counts. Rising related queries show growth in
+percent, or `Breakout` when growth is very large.
 
 ## Quick start (Python, no dependencies)
 
@@ -45,7 +46,8 @@ not search counts.
    ```
 
 The script saves `runs/RUN_ID/results.json` with the run summary and all rows,
-then prints how many new signals and unfinished checks it found. Add
+checks the row count against the Dataset, then prints how many new signals and
+unfinished checks it found. Add
 `--timeline-csv timeline.csv` to get interest over time as a CSV. You can also
 keep the token in a `.env` file and pass `--env-file .env`.
 
@@ -77,8 +79,9 @@ and the residential proxy:
 For example, 100 keyword groups a day cost $0.40 a day. Prices are as of
 27 September 2026. The Actor's
 [Pricing tab](https://apify.com/automa-flow/google-trends-monitor/pricing) is
-authoritative. The preview prints the upper bound for your input, and
-`--max-charge` sets the run's spending cap.
+authoritative. The Python preview prints the upper bound for your input, and
+`--max-charge` sets the run's spending cap. The Node.js and Bash scripts use a
+fixed $0.05 cap, set at the top of each file.
 
 ## Read the results safely
 

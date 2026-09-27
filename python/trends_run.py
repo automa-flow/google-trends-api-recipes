@@ -56,10 +56,23 @@ class ApiError(RuntimeError):
         self.status = status
 
 
+class SameHostAuthRedirect(urllib.request.HTTPRedirectHandler):
+    """urllib forwards every header on a redirect; never send the token to another host."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and urllib.parse.urlsplit(newurl).hostname != urllib.parse.urlsplit(req.full_url).hostname:
+            new.remove_header("Authorization")
+        return new
+
+
+OPENER = urllib.request.build_opener(SameHostAuthRedirect)
+
+
 def urllib_fetch(method: str, url: str, body: bytes | None, headers: dict[str, str]) -> tuple[int, bytes]:
     request = urllib.request.Request(url, data=body, method=method, headers=headers)
     try:
-        with urllib.request.urlopen(request, timeout=90) as response:
+        with OPENER.open(request, timeout=90) as response:
             return response.status, response.read()
     except urllib.error.HTTPError as error:
         return error.code, error.read()
@@ -124,18 +137,27 @@ class Apify:
         return summary
 
     def read_items(self, dataset_id: str) -> list[dict[str, Any]]:
+        """Read every page, then check the count against the Dataset's own itemCount."""
+        expected = self.get(f"/datasets/{dataset_id}")["data"].get("itemCount")
         rows: list[dict[str, Any]] = []
         while True:
             page = self.get(f"/datasets/{dataset_id}/items", {"offset": len(rows), "limit": PAGE_SIZE})
             if not page:
-                return rows
+                break
             rows.extend(page)
+        if isinstance(expected, int) and len(rows) < expected:
+            raise ValueError(f"Read {len(rows)} of {expected} rows, so the result is incomplete. Try --resume later")
+        return rows
 
 
 def collect(api: Apify, run: dict[str, Any]) -> dict[str, Any]:
     """A SUCCEEDED run is necessary but not sufficient: keep the summary and every row."""
     if run.get("actId") != ACTOR_ID:
         raise ValueError("This run belongs to a different Actor")
+    if run.get("status") not in TERMINAL:
+        raise ValueError(
+            f"Run {run.get('id')} is still {run.get('status')}. Read it later with --resume {run.get('id')}"
+        )
     if run.get("status") != "SUCCEEDED":
         link = CONSOLE_RUN_URL.format(run_id=run.get("id"))
         raise ValueError(f"Run is {run.get('status')}. Inspect it before starting another: {link}")
@@ -199,7 +221,7 @@ def estimate_max_cost(actor_input: dict[str, Any]) -> dict[str, Any]:
 def read_env_file(path: Path) -> dict[str, str]:
     values = {}
     for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
+        line = line.strip().removeprefix("export ").strip()
         if line and not line.startswith("#") and "=" in line:
             key, value = line.split("=", 1)
             values[key.strip()] = value.strip().strip('"').strip("'")
@@ -269,13 +291,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.resume:
         run_id = args.resume
     else:
-        run_id = api.start_run(
-            actor_input, build=args.build, memory=args.memory, timeout=args.timeout, max_charge=args.max_charge
-        )
+        try:
+            run_id = api.start_run(
+                actor_input, build=args.build, memory=args.memory, timeout=args.timeout, max_charge=args.max_charge
+            )
+        except (ApiError, OSError) as error:
+            print(
+                f"Could not confirm the run start ({error}). A paid run may still have been created: check "
+                "https://console.apify.com/actors/runs before trying again, then use --resume RUN_ID.",
+                file=sys.stderr,
+            )
+            return 2
         print(f"Started run {run_id}. If this script stops, continue with: --resume {run_id}", file=sys.stderr)
 
-    run = api.wait_for_run(run_id, deadline_seconds=args.timeout + 120)
-    result = collect(api, run)
+    try:
+        run = api.wait_for_run(run_id, deadline_seconds=args.timeout + 120)
+        result = collect(api, run)
+    except (ValueError, TypeError, ApiError) as error:
+        print(error, file=sys.stderr)
+        return 1
     parts = split_rows(result["rows"])
 
     out = args.out_dir / run_id
