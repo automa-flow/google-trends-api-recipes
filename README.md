@@ -3,9 +3,11 @@
 [![tests](https://github.com/automa-flow/google-trends-api-recipes/actions/workflows/tests.yml/badge.svg)](https://github.com/automa-flow/google-trends-api-recipes/actions/workflows/tests.yml)
 
 Need Google Trends data in a script, a spreadsheet or a scheduled job?
-These small, tested examples call
+These small examples call
 [Google Trends Scraper & Breakout Monitor](https://apify.com/automa-flow/google-trends-monitor),
-a hosted Actor on Apify, and save every result row with its status.
+a hosted Actor on Apify, and save every result row with its status. They are
+unofficial: this is not Google's own Trends API, and it is not affiliated with
+Google.
 
 If you used pytrends: the library is archived and its last commit is from
 August 2024. Its most common failure was Google's per-IP rate limit (HTTP 429).
@@ -136,7 +138,8 @@ Google login, CAPTCHA solving or a browser.
 
 ## Tests
 
-The tests run offline against a saved sample output and never call Apify or Google.
+The tests run offline against an [illustrative sample output](fixtures/README.md)
+and never call Apify or Google.
 
 ```sh
 python -m pip install pytest
@@ -152,8 +155,8 @@ the run ID, what you expected and a small input without secrets. Questions
 about these examples are welcome as GitHub issues here.
 
 Maintained by Vadim Bezrukov ([automa-flow on Apify](https://apify.com/automa-flow)).
-If you need Google Trends or other web data wired into your own pipeline, you
-can reach me through that profile.
+If you need Google Trends or other web data wired into your own pipeline, open
+an issue here and describe the job.
 
 ## License
 

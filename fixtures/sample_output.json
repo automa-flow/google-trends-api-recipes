@@ -361,7 +361,7 @@
   {
     "record_type": "observation",
     "source": "Google Trends",
-    "source_id": "trends:2ee4b0e247cfbe87:trending:john galliano",
+    "source_id": "trends:2ee4b0e247cfbe87:trending:example trending topic",
     "source_url": "https://trends.google.com/trending?geo=US",
     "scraped_at": "2026-09-01T08:00:00Z",
     "schema_version": 1,
@@ -386,7 +386,7 @@
     "formatted_value": "500+",
     "region": null,
     "region_code": null,
-    "trend_query": "john galliano",
+    "trend_query": "example trending topic",
     "trend_volume": "500+",
     "change_type": "BASELINE",
     "source_scaling_context": {
@@ -402,16 +402,12 @@
       "note": "Values are relative to the highest point within this context, not absolute search volume. Compare values only with rows carrying the same scaling context id."
     },
     "source_metadata": {
-      "picture_source": "The New York Times",
+      "picture_source": "Example News",
       "news_titles": [
-        "Metropolitan Museum Faces Further Criticism Over John Galliano Exhibition",
-        "“John Galliano: Horizons,” the Met’s Spring 2027 Costume Institute Exhibition, Will Not Proceed as Planned",
-        "John Galliano's Met Gala exhibit canceled amid backlash"
+        "Example headline about the trending topic"
       ],
       "news_urls": [
-        "https://www.nytimes.com/2026/08/31/style/john-galliano-met-gala-canceled.html",
-        "https://www.vogue.com/article/john-galliano-horizons-the-mets-spring-2027-costume-institute-exhibition-will-not-proceed-as-planned",
-        "https://www.cbsnews.com/news/john-galliano-met-gala-exhibit-dropped-backlash/"
+        "https://example.com/news/example-trending-topic"
       ]
     },
     "error": null
