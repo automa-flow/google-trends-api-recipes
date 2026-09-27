@@ -1,0 +1,27 @@
+{
+  "queries": [
+    {
+      "keywords": [
+        "python",
+        "javascript",
+        "rust"
+      ],
+      "externalId": "languages"
+    }
+  ],
+  "geo": "US",
+  "timeframe": "today 12-m",
+  "dataTypes": [
+    "interest_over_time",
+    "interest_by_region"
+  ],
+  "mode": "snapshot",
+  "outputMode": "all",
+  "proxyConfiguration": {
+    "useApifyProxy": true,
+    "apifyProxyGroups": [
+      "RESIDENTIAL"
+    ],
+    "apifyProxyCountry": "US"
+  }
+}

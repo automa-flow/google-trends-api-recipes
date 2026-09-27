@@ -1,0 +1,11 @@
+{
+  "dataTypes": [
+    "trending_now"
+  ],
+  "trendingGeos": [
+    "US",
+    "GB"
+  ],
+  "mode": "snapshot",
+  "outputMode": "all"
+}

@@ -1,0 +1,242 @@
+{
+  "name": "Google Trends keyword watchlist: run, verify, new signals",
+  "active": false,
+  "nodes": [
+    {
+      "id": "Manual-start",
+      "name": "Manual start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "Run-Actor",
+      "name": "Run Actor",
+      "type": "@apify/n8n-nodes-apify.apify",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "authentication": "apifyApi",
+        "resource": "Actors",
+        "operation": "Run actor",
+        "actorId": "automa-flow~google-trends-monitor",
+        "customBody": "{\n  \"queries\": [\n    {\n      \"keywords\": [\n        \"electric bike\",\n        \"cargo bike\",\n        \"folding electric bike\"\n      ],\n      \"externalId\": \"urban-mobility\"\n    },\n    {\n      \"keywords\": [\n        \"air fryer\",\n        \"dual air fryer\"\n      ],\n      \"externalId\": \"kitchen-demand\"\n    }\n  ],\n  \"geo\": \"US\",\n  \"timeframe\": \"today 3-m\",\n  \"dataTypes\": [\n    \"interest_over_time\",\n    \"related_queries\"\n  ],\n  \"mode\": \"monitor\",\n  \"outputMode\": \"changesOnly\",\n  \"monitorId\": \"demand-research-us\",\n  \"proxyConfiguration\": {\n    \"useApifyProxy\": true,\n    \"apifyProxyGroups\": [\n      \"RESIDENTIAL\"\n    ],\n    \"apifyProxyCountry\": \"US\"\n  }\n}",
+        "waitForFinish": true,
+        "build": "latest",
+        "timeout": 300,
+        "memory": 512,
+        "maxTotalChargeUsd": 0.05
+      }
+    },
+    {
+      "id": "Require-completed-run",
+      "name": "Require completed run",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const run = $input.first().json;\nif (run.status !== 'SUCCEEDED' || run.actId !== 'WecREidW3gHipWFzP') throw new Error('Run incomplete or wrong Actor; inspect this run before retrying');\nreturn [{json:run}];"
+      }
+    },
+    {
+      "id": "Read-summary",
+      "name": "Read summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "url": "=https://api.apify.com/v2/key-value-stores/{{ $('Require completed run').first().json.defaultKeyValueStoreId }}/records/RUN_SUMMARY",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "retryOnFail": false
+    },
+    {
+      "id": "Read-metadata",
+      "name": "Read metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $('Require completed run').first().json.defaultDatasetId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "retryOnFail": false
+    },
+    {
+      "id": "Validate-size",
+      "name": "Validate size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const metadata = $input.first().json.body?.data;\nif (!metadata || !Number.isInteger(metadata.itemCount) || metadata.itemCount > 10000) throw new Error('Dataset requires pagination; use the API recipe instead');\nreturn [{json:metadata}];"
+      }
+    },
+    {
+      "id": "Read-dataset",
+      "name": "Read dataset",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $('Require completed run').first().json.defaultDatasetId }}/items?offset=0&limit=10000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "retryOnFail": false
+    },
+    {
+      "id": "Useful-output",
+      "name": "Useful output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const rows = $input.first().json.body;\nconst count = $('Validate size').first().json.itemCount;\nconst summary = $('Read summary').first().json.body;\nconst run = $('Require completed run').first().json;\nif (!Array.isArray(rows) || rows.length !== count) throw new Error('Incomplete dataset; no downstream write');\nif (!summary || typeof summary !== 'object' || Array.isArray(summary)) throw new Error('Missing RUN_SUMMARY');\n// NOT_FOUND is a verified empty answer. PARTIAL and FAILED are unfinished checks, never \"no data\".\nconst changeTypes = ['BREAKOUT_NEW', 'RISING_QUERY_NEW', 'RISING_QUERY_CHANGED', 'TRENDING_TOPIC_NEW'];\nconst ok = r => r.status === 'SUCCESS' && r.record_type !== 'group_status';\nconst events = rows.filter(r => ok(r) && changeTypes.includes(r.change_type));\nconst baseline = rows.filter(r => ok(r) && r.change_type === 'BASELINE');\nconst groupStatus = rows.filter(r => r.record_type === 'group_status');\nconst problems = rows.filter(r => r.status === 'PARTIAL' || r.status === 'FAILED');\nreturn [{json: {runId: run.id, summary, events, baseline, groupStatus, problems, rows}}];"
+      }
+    }
+  ],
+  "connections": {
+    "Manual start": {
+      "main": [
+        [
+          {
+            "node": "Run Actor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Actor": {
+      "main": [
+        [
+          {
+            "node": "Require completed run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Require completed run": {
+      "main": [
+        [
+          {
+            "node": "Read summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read summary": {
+      "main": [
+        [
+          {
+            "node": "Read metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read metadata": {
+      "main": [
+        [
+          {
+            "node": "Validate size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate size": {
+      "main": [
+        [
+          {
+            "node": "Read dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read dataset": {
+      "main": [
+        [
+          {
+            "node": "Useful output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 900,
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "keywords": [
+    "meal prep"
+  ],
+  "geo": "US",
+  "timeframe": "today 3-m",
+  "dataTypes": [
+    "related_queries"
+  ],
+  "mode": "snapshot",
+  "outputMode": "all",
+  "proxyConfiguration": {
+    "useApifyProxy": true,
+    "apifyProxyGroups": [
+      "RESIDENTIAL"
+    ],
+    "apifyProxyCountry": "US"
+  }
+}

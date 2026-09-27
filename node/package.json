@@ -1,0 +1,12 @@
+{
+  "name": "google-trends-api-recipes",
+  "private": true,
+  "type": "module",
+  "description": "Run Google Trends Scraper & Breakout Monitor on Apify from Node.js without dependencies",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "preview": "node run.mjs ../examples/quick-start.json",
+    "test": "node --test"
+  },
+  "license": "MIT"
+}

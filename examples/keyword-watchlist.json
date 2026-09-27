@@ -1,0 +1,35 @@
+{
+  "queries": [
+    {
+      "keywords": [
+        "electric bike",
+        "cargo bike",
+        "folding electric bike"
+      ],
+      "externalId": "urban-mobility"
+    },
+    {
+      "keywords": [
+        "air fryer",
+        "dual air fryer"
+      ],
+      "externalId": "kitchen-demand"
+    }
+  ],
+  "geo": "US",
+  "timeframe": "today 3-m",
+  "dataTypes": [
+    "interest_over_time",
+    "related_queries"
+  ],
+  "mode": "monitor",
+  "outputMode": "changesOnly",
+  "monitorId": "demand-research-us",
+  "proxyConfiguration": {
+    "useApifyProxy": true,
+    "apifyProxyGroups": [
+      "RESIDENTIAL"
+    ],
+    "apifyProxyCountry": "US"
+  }
+}
