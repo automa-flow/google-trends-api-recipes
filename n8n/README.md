@@ -22,10 +22,11 @@ no credentials.
 
 - **Require completed run** stops unless the run SUCCEEDED and belongs to this Actor.
 - **Read summary** fetches `RUN_SUMMARY`; a missing summary means completeness is unknown.
-- **Validate size** reads the Dataset item count and stops above 10,000 rows.
+- **Validate size** reads the Dataset item count and stops above 10,000 items.
   For bigger runs use the [Python](../python/trends_run.py) or
   [Node.js](../node/run.mjs) script, which page through everything.
-- **Useful output** stops if the rows read differ from the item count, then returns:
+- **Useful output** stops if the items read differ from the item count, expands
+  `row_page` items into their rows, then returns:
 
 | Field | Use it for |
 | --- | --- |

@@ -25,6 +25,14 @@ test('every dataset page is read and checked against itemCount', async () => {
   assert.match(calls[2][1], /offset=1000/);
 });
 
+test('row_page items are expanded after the count check', async () => {
+  const status = { record_type: 'group_status', status: 'SUCCESS' };
+  const rows = [0, 1, 2].map(n => ({ record_type: 'observation', n }));
+  const { call, calls } = fakeCall([{ data: { itemCount: 2 } }, [status, { record_type: 'row_page', rows }], []]);
+  assert.deepEqual(await readItems(call, 'dataset1'), [status, ...rows]);
+  assert.match(calls[2][1], /offset=2&/); // offsets count stored items, not rows
+});
+
 test('fewer rows than the dataset count is an error, not a smaller result', async () => {
   const { call } = fakeCall([{ data: { itemCount: 3 } }, [{ n: 1 }], []]);
   await assert.rejects(readItems(call, 'dataset1'), /Read 1 of 3 rows/);

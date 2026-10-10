@@ -30,6 +30,10 @@ Every run also writes a `group_status` row for each keyword group and a
 comparison group), not search counts. Rising related queries show growth in
 percent, or `Breakout` when growth is very large.
 
+Since Actor version 1.10.13 the Dataset stores rows in `row_page` items of up
+to 500 rows each. Every recipe here checks the stored item count and then
+expands those pages, so you still get one row per value as listed above.
+
 ## Quick start (Python, no dependencies)
 
 1. Create an Apify account and copy your API token from

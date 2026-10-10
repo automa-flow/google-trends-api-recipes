@@ -70,6 +70,15 @@ def test_all_dataset_pages_are_read():
     assert "offset=1000" in fake.calls[2][1]
 
 
+def test_row_pages_are_expanded_after_the_count_check():
+    status = {"record_type": "group_status", "status": "SUCCESS"}
+    rows = [{"record_type": "observation", "n": i} for i in range(3)]
+    page = {"record_type": "row_page", "status": "SUCCESS", "rows": rows}
+    api, fake = make_api([dataset_meta(2), (200, [status, page]), (200, [])])
+    assert api.read_items("dataset1") == [status, *rows]
+    assert "offset=2" in fake.calls[2][1]  # offsets count stored items, not rows
+
+
 def test_fewer_rows_than_the_dataset_count_is_an_error():
     api, _ = make_api([dataset_meta(3), (200, [{"n": 1}]), (200, [])])
     with pytest.raises(ValueError, match="Read 1 of 3 rows"):

@@ -31,9 +31,12 @@ and the same JSON body. Never put the token in a URL.
 2. Read all pages of the run's default Dataset, not only the first bundle.
 3. Read the `RUN_SUMMARY` record from the run's default key-value store. If it
    is missing, send the run to an operations sheet instead of the report.
-4. Compare the number of rows you collected with the Dataset's `itemCount`
+4. Compare the number of items you collected with the Dataset's `itemCount`
    before writing anything.
-5. Route rows:
+5. Since Actor version 1.10.13 rows are stored in `row_page` items of up to
+   500 rows. Iterate each such item's `rows` array before routing, or add
+   `"datasetFormat": "flat"` to the Scenario 1 input to get one item per row.
+6. Route rows:
    - `record_type = observation`, `status = SUCCESS` and `change_type = BREAKOUT_NEW`
      go to a Breakouts sheet;
    - other new rising queries (`RISING_QUERY_NEW`, `RISING_QUERY_CHANGED`) go to a research sheet;

@@ -93,7 +93,8 @@ while true; do
   get "$api/datasets/$dataset/items?offset=$offset&limit=1000" > "$out/page.json"
   count=$(jq -er 'if type == "array" then length else error("unexpected dataset page") end' "$out/page.json")
   [[ "$count" == 0 ]] && break
-  jq -c '.[]' "$out/page.json" >> "$out/items.jsonl"
+  # Since Actor 1.10.13 rows are stored in row_page items; write their rows.
+  jq -c '.[] | if .record_type == "row_page" then .rows[] else . end' "$out/page.json" >> "$out/items.jsonl"
   offset=$((offset + count))
 done
 rm -f "$out/page.json"

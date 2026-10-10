@@ -137,17 +137,33 @@ class Apify:
         return summary
 
     def read_items(self, dataset_id: str) -> list[dict[str, Any]]:
-        """Read every page, then check the count against the Dataset's own itemCount."""
+        """Read every page, check it against the Dataset's itemCount, then expand row pages.
+
+        Since Actor version 1.10.13 rows are stored in ``row_page`` items of up to
+        500 rows by default. Offsets and itemCount count stored items, so pages
+        are read raw and expanded here; paging with ``unwind=rows`` can skip items.
+        """
         expected = self.get(f"/datasets/{dataset_id}")["data"].get("itemCount")
-        rows: list[dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
         while True:
-            page = self.get(f"/datasets/{dataset_id}/items", {"offset": len(rows), "limit": PAGE_SIZE})
+            page = self.get(f"/datasets/{dataset_id}/items", {"offset": len(items), "limit": PAGE_SIZE})
             if not page:
                 break
-            rows.extend(page)
-        if isinstance(expected, int) and len(rows) < expected:
-            raise ValueError(f"Read {len(rows)} of {expected} rows, so the result is incomplete. Try --resume later")
-        return rows
+            items.extend(page)
+        if isinstance(expected, int) and len(items) < expected:
+            raise ValueError(f"Read {len(items)} of {expected} rows, so the result is incomplete. Try --resume later")
+        return expand_rows(items)
+
+
+def expand_rows(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Flat rows: each ``row_page`` item contributes its ``rows``, other items stay."""
+    rows: list[dict[str, Any]] = []
+    for item in items:
+        if item.get("record_type") == "row_page" and isinstance(item.get("rows"), list):
+            rows.extend(item["rows"])
+        else:
+            rows.append(item)
+    return rows
 
 
 def collect(api: Apify, run: dict[str, Any]) -> dict[str, Any]:

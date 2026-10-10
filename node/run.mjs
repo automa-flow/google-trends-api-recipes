@@ -54,19 +54,25 @@ export function makeCall(token, fetchImpl = fetch, wait = sleep) {
   };
 }
 
-// Read every page, then check the count against the Dataset's own itemCount.
+// Flat rows: each row_page item (Actor 1.10.13+) contributes its rows, other items stay.
+export function expandRows(items) {
+  return items.flatMap(item => (item?.record_type === 'row_page' && Array.isArray(item.rows) ? item.rows : [item]));
+}
+
+// Read every page, check it against the Dataset's itemCount, then expand row pages.
+// Offsets and itemCount count stored items; paging with unwind=rows can skip items.
 export async function readItems(call, datasetId) {
   const expected = (await call('GET', `/datasets/${datasetId}`)).data.itemCount;
-  const rows = [];
+  const items = [];
   for (;;) {
-    const page = await call('GET', `/datasets/${datasetId}/items?offset=${rows.length}&limit=1000`);
+    const page = await call('GET', `/datasets/${datasetId}/items?offset=${items.length}&limit=1000`);
     if (!page?.length) break;
-    rows.push(...page);
+    items.push(...page);
   }
-  if (Number.isInteger(expected) && rows.length < expected) {
-    throw new Error(`Read ${rows.length} of ${expected} rows, so the result is incomplete. Try --resume later`);
+  if (Number.isInteger(expected) && items.length < expected) {
+    throw new Error(`Read ${items.length} of ${expected} rows, so the result is incomplete. Try --resume later`);
   }
-  return rows;
+  return expandRows(items);
 }
 
 // A SUCCEEDED run is necessary but not sufficient: keep the summary and every row.
